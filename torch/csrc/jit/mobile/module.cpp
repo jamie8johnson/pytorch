@@ -43,16 +43,20 @@ c10::optional<Method> Module::find_method(const std::string& basename) const {
 }
 
 namespace {
+
+// For JIT, there is a function to get all modules by iteration in struct slot_iterator_impl
+// (jit/api/module.h), this function use recursion to mimic the logic without allocating extra
+// memory to get module list and set training attribute directly.
 void set_train_recurse(
     const c10::intrusive_ptr<c10::ivalue::Object>& obj,
     bool on) {
   if (auto slot = obj->type()->findAttributeSlot("training")) {
     obj->setSlot(*slot, on);
-  } else {
-    TORCH_INTERNAL_ASSERT(false, "'training' attribute not found");
   }
   for (const auto& slot : obj->slots()) {
-    if (slot.isObject()) {
+    // slots is a list of IValue. Continue setting training attribute only
+    // if the slot is an Object and a module.
+    if (slot.isObject() && slot.toObjectRef().type()->is_module()) {
       set_train_recurse(slot.toObject(), on);
     }
   }
